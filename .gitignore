@@ -25,5 +25,8 @@ pnpm-debug.log*
 # Vite cache
 .vite/
 
-# TypeScript
+# TypeScript build info
 *.tsbuildinfo
+
+# Replit specific (not needed outside Replit)
+.replit-artifact/
