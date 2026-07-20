@@ -10,6 +10,13 @@ import { toast } from 'sonner';
 import {
   auth,
   signInWithGoogle,
+  signInWithGithub,
+  signInWithEmail,
+  signUpWithEmail,
+  signInAsGuest,
+  resetPassword,
+  linkGuestToGoogle,
+  linkGuestToGithub,
   signOut,
   saveCloudProject,
   listCloudProjects,
@@ -32,10 +39,17 @@ export type CloudProject = {
 type FirebaseContextType = {
   user: User | null;
   authLoading: boolean;
+  isAnonymous: boolean;
   cloudProjects: CloudProject[];
   cloudLoading: boolean;
 
-  login: () => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  loginWithGithub: () => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  registerWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
+  loginAsGuest: () => Promise<void>;
+  sendReset: (email: string) => Promise<void>;
+  upgradeGuest: (provider: 'google' | 'github') => Promise<void>;
   logout: () => Promise<void>;
 
   saveToCloud: (data: {
@@ -45,10 +59,8 @@ type FirebaseContextType = {
     metadata: object | null;
     duration?: number;
   }) => Promise<void>;
-
   refreshCloudProjects: () => Promise<void>;
   deleteFromCloud: (projectId: string) => Promise<void>;
-
   sharePreset: (name: string, effects: object) => Promise<string | null>;
   uploadAudio: (filename: string, blob: Blob) => Promise<string | null>;
 };
@@ -56,12 +68,11 @@ type FirebaseContextType = {
 const FirebaseContext = createContext<FirebaseContextType | null>(null);
 
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser]               = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [cloudProjects, setCloudProjects] = useState<CloudProject[]>([]);
-  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudLoading, setCloudLoading]   = useState(false);
 
-  // Watch auth state
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -70,33 +81,68 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     return unsub;
   }, []);
 
-  // Auto-load cloud projects when user signs in
   useEffect(() => {
-    if (user) {
-      refreshCloudProjects();
-    } else {
-      setCloudProjects([]);
-    }
+    if (user && !user.isAnonymous) refreshCloudProjects();
+    else setCloudProjects([]);
   }, [user]);
 
-  const login = useCallback(async () => {
-    try {
-      await signInWithGoogle();
-      toast.success('Signed in with Google');
-    } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        toast.error('Sign-in failed: ' + (err.message ?? 'unknown error'));
+  // ── helpers ────────────────────────────────────────────────────────────────
+
+  const wrap = useCallback(
+    async (fn: () => Promise<unknown>, successMsg?: string) => {
+      try {
+        await fn();
+        if (successMsg) toast.success(successMsg);
+      } catch (err: any) {
+        if (err.code !== 'auth/popup-closed-by-user') {
+          toast.error(err.message ?? 'Something went wrong');
+        }
       }
-    }
-  }, []);
+    },
+    []
+  );
+
+  // ── auth actions ───────────────────────────────────────────────────────────
+
+  const loginWithGoogle  = useCallback(() => wrap(signInWithGoogle,  'Signed in with Google ✓'),  [wrap]);
+  const loginWithGithub  = useCallback(() => wrap(signInWithGithub,  'Signed in with GitHub ✓'),  [wrap]);
+  const loginAsGuest     = useCallback(() => wrap(signInAsGuest,     'Browsing as guest'),         [wrap]);
+
+  const loginWithEmail = useCallback(
+    (email: string, password: string) =>
+      wrap(() => signInWithEmail(email, password), 'Signed in ✓'),
+    [wrap]
+  );
+
+  const registerWithEmail = useCallback(
+    (email: string, password: string, displayName: string) =>
+      wrap(() => signUpWithEmail(email, password, displayName), 'Account created ✓'),
+    [wrap]
+  );
+
+  const sendReset = useCallback(
+    (email: string) => wrap(() => resetPassword(email), 'Reset email sent ✓'),
+    [wrap]
+  );
+
+  const upgradeGuest = useCallback(
+    (provider: 'google' | 'github') =>
+      wrap(
+        () => (provider === 'google' ? linkGuestToGoogle() : linkGuestToGithub()),
+        'Account upgraded ✓'
+      ),
+    [wrap]
+  );
 
   const logout = useCallback(async () => {
     await signOut();
     toast.success('Signed out');
   }, []);
 
+  // ── cloud ──────────────────────────────────────────────────────────────────
+
   const refreshCloudProjects = useCallback(async () => {
-    if (!user) return;
+    if (!user || user.isAnonymous) return;
     setCloudLoading(true);
     try {
       const projects = await listCloudProjects(user.uid);
@@ -109,23 +155,13 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const saveToCloud = useCallback(
-    async (data: {
-      name: string;
-      effects: object;
-      playlists: object[];
-      metadata: object | null;
-      duration?: number;
-    }) => {
-      if (!user) {
-        toast.error('Sign in to save to the cloud');
-        return;
-      }
+    async (data: { name: string; effects: object; playlists: object[]; metadata: object | null; duration?: number }) => {
+      if (!user || user.isAnonymous) { toast.error('Sign in to save to the cloud'); return; }
       try {
         await saveCloudProject(user.uid, data);
         await refreshCloudProjects();
         toast.success('Saved to cloud ☁️');
       } catch (err) {
-        console.error(err);
         toast.error('Cloud save failed');
       }
     },
@@ -139,8 +175,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         await deleteCloudProject(user.uid, projectId);
         await refreshCloudProjects();
         toast.success('Deleted from cloud');
-      } catch (err) {
-        console.error(err);
+      } catch {
         toast.error('Delete failed');
       }
     },
@@ -149,18 +184,14 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
   const sharePreset = useCallback(
     async (name: string, effects: object): Promise<string | null> => {
-      if (!user) {
-        toast.error('Sign in to share presets');
-        return null;
-      }
+      if (!user || user.isAnonymous) { toast.error('Sign in to share presets'); return null; }
       try {
         const id = await fbSharePreset(user.uid, name, effects);
         const link = `${window.location.origin}${import.meta.env.BASE_URL}?preset=${id}`;
         await navigator.clipboard.writeText(link);
-        toast.success('Preset link copied to clipboard!');
+        toast.success('Preset link copied!');
         return id;
-      } catch (err) {
-        console.error(err);
+      } catch {
         toast.error('Failed to share preset');
         return null;
       }
@@ -170,16 +201,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
   const uploadAudio = useCallback(
     async (filename: string, blob: Blob): Promise<string | null> => {
-      if (!user) {
-        toast.error('Sign in to upload audio');
-        return null;
-      }
+      if (!user || user.isAnonymous) { toast.error('Sign in to upload audio'); return null; }
       try {
         const url = await uploadAudioFile(user.uid, filename, blob);
-        toast.success('Audio uploaded to cloud ☁️');
+        toast.success('Audio uploaded ☁️');
         return url;
-      } catch (err) {
-        console.error(err);
+      } catch {
         toast.error('Upload failed');
         return null;
       }
@@ -192,9 +219,16 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         authLoading,
+        isAnonymous: user?.isAnonymous ?? false,
         cloudProjects,
         cloudLoading,
-        login,
+        loginWithGoogle,
+        loginWithGithub,
+        loginWithEmail,
+        registerWithEmail,
+        loginAsGuest,
+        sendReset,
+        upgradeGuest,
         logout,
         saveToCloud,
         refreshCloudProjects,
