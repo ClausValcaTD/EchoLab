@@ -1,0 +1,117 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Mono&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant oled (&:is(.oled *));
+
+@theme inline {
+  --color-background: var(--echo-bg);
+  --color-foreground: hsl(0 0% 95%);
+  --color-border: var(--echo-border);
+  --color-input: rgba(255,255,255,0.05);
+  --color-ring: var(--echo-cyan);
+
+  --color-card: var(--echo-surface);
+  --color-card-foreground: hsl(0 0% 95%);
+  --color-card-border: var(--echo-border);
+
+  --color-popover: var(--echo-bg);
+  --color-popover-foreground: hsl(0 0% 95%);
+  --color-popover-border: var(--echo-border);
+
+  --color-primary: var(--echo-cyan);
+  --color-primary-foreground: #000000;
+
+  --color-secondary: var(--echo-purple);
+  --color-secondary-foreground: #ffffff;
+
+  --color-muted: rgba(255,255,255,0.1);
+  --color-muted-foreground: rgba(255,255,255,0.6);
+
+  --color-accent: var(--echo-cyan);
+  --color-accent-foreground: #000000;
+
+  --color-destructive: #ff3333;
+  --color-destructive-foreground: #ffffff;
+
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.75rem;
+
+  --echo-bg: #0a0a0a;
+  --echo-bg-oled: #000000;
+  --echo-surface: rgba(255,255,255,0.04);
+  --echo-surface-hover: rgba(255,255,255,0.08);
+  --echo-border: rgba(255,255,255,0.08);
+  --echo-cyan: #00d4ff;
+  --echo-purple: #7b2cbf;
+  --echo-gradient: linear-gradient(90deg, #00d4ff, #7b2cbf);
+  --echo-glow-cyan: 0 0 20px rgba(0,212,255,0.4);
+  --echo-glow-purple: 0 0 20px rgba(123,44,191,0.4);
+}
+
+.dark {
+  --echo-bg: #0a0a0a;
+  --echo-surface: rgba(255,255,255,0.04);
+}
+
+.oled {
+  --echo-bg: #000000;
+  --echo-surface: rgba(255,255,255,0.02);
+  --echo-glow-cyan: 0 0 30px rgba(0,212,255,0.6);
+  --echo-glow-purple: 0 0 30px rgba(123,44,191,0.6);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+.glass-panel {
+  background-color: var(--echo-surface);
+  border: 1px solid var(--echo-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.text-gradient {
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-image: var(--echo-gradient);
+}
+
+.bg-gradient-accent {
+  background-image: var(--echo-gradient);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent; 
+}
+::-webkit-scrollbar-thumb {
+  background: var(--echo-border); 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.2); 
+}

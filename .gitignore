@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+dist-ssr/
+build/
+
+# Environment — NEVER commit real values
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Editor & OS
+.DS_Store
+.vscode/settings.json
+Thumbs.db
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Vite cache
+.vite/
+
+# TypeScript
+*.tsbuildinfo
