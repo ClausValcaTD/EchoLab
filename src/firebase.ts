@@ -2,8 +2,15 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   GoogleAuthProvider,
+  GithubAuthProvider,
   signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signInAnonymously,
   signOut as firebaseSignOut,
+  linkWithPopup,
+  updateProfile,
 } from 'firebase/auth';
 import {
   initializeFirestore,
@@ -11,7 +18,6 @@ import {
   persistentMultipleTabManager,
   collection,
   doc,
-  setDoc,
   getDocs,
   deleteDoc,
   addDoc,
@@ -36,11 +42,8 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
-
 export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
 
-// Firestore with multi-tab offline persistence
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager(),
@@ -49,14 +52,36 @@ export const db = initializeFirestore(app, {
 
 export const storage = getStorage(app);
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+// ── Providers ─────────────────────────────────────────────────────────────────
 
-export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
-export const signOut = () => firebaseSignOut(auth);
+const googleProvider = new GoogleAuthProvider();
+const githubProvider = new GithubAuthProvider();
+// ── Auth methods ──────────────────────────────────────────────────────────────
+
+export const signInWithGoogle    = () => signInWithPopup(auth, googleProvider);
+export const signInWithGithub    = () => signInWithPopup(auth, githubProvider);
+export const signInAsGuest       = () => signInAnonymously(auth);
+
+export const signInWithEmail     = (email: string, password: string) =>
+  signInWithEmailAndPassword(auth, email, password);
+
+export const signUpWithEmail     = (email: string, password: string, displayName: string) =>
+  createUserWithEmailAndPassword(auth, email, password).then(async (cred) => {
+    await updateProfile(cred.user, { displayName });
+    return cred;
+  });
+
+export const resetPassword       = (email: string) =>
+  sendPasswordResetEmail(auth, email);
+
+// link anonymous account to a real provider
+export const linkGuestToGoogle   = () => linkWithPopup(auth.currentUser!, googleProvider);
+export const linkGuestToGithub   = () => linkWithPopup(auth.currentUser!, githubProvider);
+
+export const signOut             = () => firebaseSignOut(auth);
 
 // ── Firestore helpers ─────────────────────────────────────────────────────────
 
-/** Save or overwrite a project for the current user */
 export async function saveCloudProject(
   uid: string,
   projectData: {
@@ -67,8 +92,8 @@ export async function saveCloudProject(
     duration?: number;
   }
 ) {
-  const projectsRef = collection(db, 'users', uid, 'projects');
-  const docRef = await addDoc(projectsRef, {
+  const ref = collection(db, 'users', uid, 'projects');
+  const docRef = await addDoc(ref, {
     ...projectData,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -76,27 +101,20 @@ export async function saveCloudProject(
   return docRef.id;
 }
 
-/** List all cloud projects for a user, newest first */
 export async function listCloudProjects(uid: string) {
-  const projectsRef = collection(db, 'users', uid, 'projects');
-  const q = query(projectsRef, orderBy('updatedAt', 'desc'));
+  const ref = collection(db, 'users', uid, 'projects');
+  const q = query(ref, orderBy('updatedAt', 'desc'));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as object) }));
 }
 
-/** Delete a cloud project */
 export async function deleteCloudProject(uid: string, projectId: string) {
   await deleteDoc(doc(db, 'users', uid, 'projects', projectId));
 }
 
-/** Share current effects as a public preset; returns the preset ID */
-export async function sharePreset(
-  uid: string,
-  presetName: string,
-  effects: object
-) {
-  const presetsRef = collection(db, 'sharedPresets');
-  const docRef = await addDoc(presetsRef, {
+export async function sharePreset(uid: string, presetName: string, effects: object) {
+  const ref = collection(db, 'sharedPresets');
+  const docRef = await addDoc(ref, {
     name: presetName,
     effects,
     authorUid: uid,
@@ -107,12 +125,7 @@ export async function sharePreset(
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
 
-/** Upload an audio blob to /users/{uid}/audio/{filename}; returns the download URL */
-export async function uploadAudioFile(
-  uid: string,
-  filename: string,
-  blob: Blob
-): Promise<string> {
+export async function uploadAudioFile(uid: string, filename: string, blob: Blob): Promise<string> {
   const storageRef = ref(storage, `users/${uid}/audio/${filename}`);
   await uploadBytes(storageRef, blob);
   return getDownloadURL(storageRef);
