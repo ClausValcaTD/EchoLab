@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { AudioEngine, AudioEffects, defaultEffects, Track as EngineTrack, LoudnessData } from '../utils/AudioEngine';
-import * as mm from 'music-metadata-browser';
+import { parseBlob } from 'music-metadata';
 
 export type Track = {
   id: string;
@@ -160,7 +160,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         await engine.loadBuffer(arrayBuffer);
         
         try {
-          const metadata = await mm.parseBlob(track.file);
+          const metadata = await parseBlob(track.file);
           track.name = metadata.common.title || track.file.name.replace(/\.[^/.]+$/, "");
           track.artist = metadata.common.artist;
           track.album = metadata.common.album;
