@@ -15,7 +15,7 @@
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
     "lamejs": "^1.2.1",
-    "music-metadata-browser": "^2.5.11"
+    "music-metadata": "^10.0.0"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
